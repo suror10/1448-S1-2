@@ -2,13 +2,67 @@ const API_URL = "https://script.google.com/macros/s/AKfycbydaGi4o6lyFKh_tdLjMBwL
 let allWeeksData = []; 
 let currentWeekNumber = 1;
 
+
 window.addEventListener('load', () => {
-  const lastSearched = localStorage.getItem('lastSearchName');
-  if (lastSearched) {
-    document.getElementById('searchInput').value = lastSearched;
-    handleSearch();
-  }
+  loadStudentNames();
 });
+
+async function loadStudentNames() {
+  const select = document.getElementById('searchInput');
+  
+
+  if (!navigator.onLine) {
+    loadNamesFromCache();
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}?action=getNames`);
+    const result = await response.json();
+    
+    if (result.status === 'success') {
+
+      localStorage.setItem('allStudentNames', JSON.stringify(result.names));
+      populateSelect(result.names);
+    } else {
+      select.innerHTML = '<option value="">❌ حدث خطأ في جلب الأسماء</option>';
+    }
+  } catch (error) {
+    console.error(error);
+    loadNamesFromCache(); 
+  }
+}
+
+
+function loadNamesFromCache() {
+  const cachedNames = localStorage.getItem('allStudentNames');
+  const select = document.getElementById('searchInput');
+  if (cachedNames) {
+    populateSelect(JSON.parse(cachedNames));
+  } else {
+    select.innerHTML = '<option value="">❌ لا يوجد اتصال بالإنترنت</option>';
+  }
+}
+
+
+function populateSelect(names) {
+  const select = document.getElementById('searchInput');
+  select.innerHTML = '<option value="">اختر اسم الطالب...</option>';
+  
+  names.forEach(name => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.innerText = name;
+    select.appendChild(option);
+  });
+
+  const lastSearched = localStorage.getItem('lastSearchName');
+  if (lastSearched && names.includes(lastSearched)) {
+    select.value = lastSearched;
+    handleSearch(); 
+  }
+}
+
 
 window.addEventListener('offline', () => {
   const badge = document.getElementById('networkBadge');
@@ -23,17 +77,17 @@ window.addEventListener('online', () => {
   
   setTimeout(() => { badge.style.display = 'none'; }, 3000);
 
-  if (document.getElementById('searchInput').value.trim() !== '') {
+  const nameInput = document.getElementById('searchInput').value;
+  if (nameInput !== '') {
     handleSearch();
+  } else {
+    loadStudentNames();
   }
 });
 
-document.getElementById('searchInput').addEventListener('keypress', function (e) {
-  if (e.key === 'Enter') handleSearch();
-});
 
 async function handleSearch() {
-  const nameInput = document.getElementById('searchInput').value.trim();
+  const nameInput = document.getElementById('searchInput').value;
   const statusDiv = document.getElementById('statusMessage');
   const weeksContainer = document.getElementById('weeksContainer');
   const filterContainer = document.getElementById('filterContainer');
@@ -43,9 +97,10 @@ async function handleSearch() {
 
   if (!nameInput) {
     statusDiv.className = 'status-message error';
-    statusDiv.innerText = '⚠️ الرجاء كتابة اسم للبحث عنه';
+    statusDiv.innerText = '⚠️ الرجاء اختيار اسم للبحث عنه';
     return;
   }
+
 
   localStorage.setItem('lastSearchName', nameInput);
 
@@ -68,6 +123,7 @@ async function handleSearch() {
       allWeeksData = result.weeks;
       currentWeekNumber = result.currentWeekNum;
 
+
       localStorage.setItem(`studentData_${nameInput}`, JSON.stringify(result));
 
       populateWeekSelect(result.weeks, currentWeekNumber);
@@ -82,6 +138,7 @@ async function handleSearch() {
     loadFromLocalStorage(nameInput, statusDiv, filterContainer);
   }
 }
+
 
 function loadFromLocalStorage(nameInput, statusDiv, filterContainer) {
   const cachedData = localStorage.getItem(`studentData_${nameInput}`);
@@ -103,6 +160,7 @@ function loadFromLocalStorage(nameInput, statusDiv, filterContainer) {
   }
 }
 
+
 function populateWeekSelect(weeks, currentWeek) {
   const select = document.getElementById('weekSelect');
   select.innerHTML = '<option value="all">عرض جميع الأسابيع</option>';
@@ -117,6 +175,7 @@ function populateWeekSelect(weeks, currentWeek) {
   select.value = currentWeek;
 }
 
+
 function filterWeeks() {
   const selectedValue = document.getElementById('weekSelect').value;
   
@@ -127,6 +186,7 @@ function filterWeeks() {
     renderWeeks(filtered);
   }
 }
+
 
 function renderWeeks(weeks) {
   const container = document.getElementById('weeksContainer');
